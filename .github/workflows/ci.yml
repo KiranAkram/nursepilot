@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+
+      - name: Install ruff
+        run: uv tool install ruff
+
+      - name: Lint api
+        run: ruff check api/
+
+      - name: Lint worker
+        run: ruff check worker/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nursepilot
+          POSTGRES_PASSWORD: nursepilot
+          POSTGRES_DB: nursepilot_test
+        options: >-
+          --health-cmd "pg_isready -U nursepilot -d nursepilot_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+psycopg://nursepilot:nursepilot@localhost:5432/nursepilot_test
+      REDIS_URL: redis://localhost:6379/0
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: latest
+
+      - name: Test api
+        working-directory: api
+        run: |
+          uv sync --group dev
+          uv run pytest tests/
+
+      - name: Test worker
+        working-directory: worker
+        run: |
+          uv sync --group dev
+          uv run pytest tests/
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build api image
+        run: docker build ./api
+
+      - name: Build worker image
+        run: docker build ./worker
