@@ -3,4 +3,15 @@ name = "worker"
 version = "0.1.0"
 description = "Celery worker"
 requires-python = ">=3.12"
-dependencies = []
+dependencies = [
+    "celery>=5.6.3",
+    "redis>=7.4.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

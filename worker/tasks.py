@@ -10,3 +10,8 @@ app = Celery("worker", broker=REDIS_URL, backend=REDIS_URL)
 @app.task
 def ping():
     return "pong"
+
+
+@app.task
+def add(x, y):
+    return x + y

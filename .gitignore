@@ -13,6 +13,7 @@ build/
 .vscode/
 .idea/
 .DS_Store
+.claude/
 
 # Testing
 .pytest_cache/
@@ -21,3 +22,7 @@ htmlcov/
 
 # Logs
 *.log
+
+                                                                                                                                                                                                     
+api/.venv                                                                                                                                                                  
+worker/.venv
