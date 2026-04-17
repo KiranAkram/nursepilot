@@ -84,3 +84,40 @@ jobs:
 
       - name: Build worker image
         run: docker build ./worker
+
+  publish:
+    name: Publish to GHCR
+    runs-on: ubuntu-latest
+    needs: [lint, test, build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push api
+        uses: docker/build-push-action@v6
+        with:
+          context: ./api
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/nursepilot-api:latest
+            ghcr.io/${{ github.repository_owner }}/nursepilot-api:${{ github.sha }}
+
+      - name: Build and push worker
+        uses: docker/build-push-action@v6
+        with:
+          context: ./worker
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/nursepilot-worker:latest
+            ghcr.io/${{ github.repository_owner }}/nursepilot-worker:${{ github.sha }}
