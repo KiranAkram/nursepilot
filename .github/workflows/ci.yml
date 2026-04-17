@@ -110,8 +110,8 @@ jobs:
           context: ./api
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nursepilot-api:latest
-            ghcr.io/${{ github.repository_owner }}/nursepilot-api:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner | lower }}/nursepilot-api:latest
+            ghcr.io/${{ github.repository_owner | lower }}/nursepilot-api:${{ github.sha }}
 
       - name: Build and push worker
         uses: docker/build-push-action@v6
@@ -119,5 +119,5 @@ jobs:
           context: ./worker
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/nursepilot-worker:latest
-            ghcr.io/${{ github.repository_owner }}/nursepilot-worker:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner | lower }}/nursepilot-worker:latest
+            ghcr.io/${{ github.repository_owner | lower }}/nursepilot-worker:${{ github.sha }}
