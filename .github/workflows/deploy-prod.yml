@@ -53,7 +53,7 @@ jobs:
         id: healthcheck
         run: |
           for i in 1 2 3; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.API_URL }}/health")
+            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_URL }}/health")
             if [ "$status" = "200" ]; then
               echo "result=success" >> $GITHUB_OUTPUT
               exit 0
@@ -70,7 +70,7 @@ jobs:
           if [ "${{ steps.healthcheck.outputs.result }}" = "success" ]; then
             echo "### Deployment successful" >> $GITHUB_STEP_SUMMARY
             echo "- Image: \`${{ env.IMAGE_PREFIX }}/nursepilot-api:${{ inputs.image_sha }}\`" >> $GITHUB_STEP_SUMMARY
-            echo "- URL: ${{ secrets.API_URL }}" >> $GITHUB_STEP_SUMMARY
+            echo "- URL: ${{ vars.API_URL }}" >> $GITHUB_STEP_SUMMARY
           else
             echo "### Deployment failed" >> $GITHUB_STEP_SUMMARY
             echo "- Health check did not return 200 after 3 attempts" >> $GITHUB_STEP_SUMMARY
