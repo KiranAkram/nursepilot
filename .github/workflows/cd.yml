@@ -52,7 +52,7 @@ jobs:
       - name: Health check dev
         run: |
           for i in 1 2 3; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.API_URL }}/health")
+            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_URL }}/health")
             if [ "$status" = "200" ]; then
               echo "Health check passed"
               exit 0
@@ -108,7 +108,7 @@ jobs:
       - name: Health check staging
         run: |
           for i in 1 2 3; do
-            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ secrets.API_URL }}/health")
+            status=$(curl -s -o /dev/null -w "%{http_code}" "${{ vars.API_URL }}/health")
             if [ "$status" = "200" ]; then
               echo "Health check passed"
               exit 0
