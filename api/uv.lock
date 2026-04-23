@@ -39,6 +39,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "pydantic" },
     { name = "uvicorn", extra = ["standard"] },
 ]
 
@@ -58,6 +59,7 @@ dev = [
 requires-dist = [
     { name = "fastapi", specifier = ">=0.136.0" },
     { name = "httpx", marker = "extra == 'dev'" },
+    { name = "pydantic", specifier = ">=2.13.2" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.44.0" },
 ]
