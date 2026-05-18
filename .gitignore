@@ -26,3 +26,6 @@ htmlcov/
                                                                                                                                                                                                      
 api/.venv                                                                                                                                                                  
 worker/.venv
+
+CLAUDE.md
+data/
