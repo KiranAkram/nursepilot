@@ -12,3 +12,6 @@ line-length = 88
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "S", "N"]
 ignore = ["S101", "E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["main", "schemas", "routers", "tasks"]
