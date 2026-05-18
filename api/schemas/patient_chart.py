@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from api.schemas.common import SourceRef
+from .common import SourceRef
 
 
 class ContactPerson(BaseModel):
@@ -208,7 +208,7 @@ class CriticalAlert(BaseModel):
 
 class DischargeSummary(BaseModel):
     document_type: str = "18842-5"
-    date: date | None = None
+    discharge_date: date | None = None
     author: str | None = None
     status: str = "current"
     narrative: str
