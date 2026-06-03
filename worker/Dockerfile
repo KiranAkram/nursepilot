@@ -9,9 +9,10 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN uv pip install --system celery redis
+COPY shared/ ./shared/
+COPY worker/ ./worker/
+RUN uv pip install --system ./shared celery redis
 
-COPY . .
+WORKDIR /app/worker
 
 CMD ["celery", "-A", "tasks", "worker", "--loglevel=info"]

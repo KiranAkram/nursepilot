@@ -6,7 +6,11 @@ requires-python = ">=3.12"
 dependencies = [
     "celery>=5.6.3",
     "redis>=7.4.0",
+    "shared",
 ]
+
+[tool.uv.sources]
+shared = { path = "../shared", editable = true }
 
 [project.optional-dependencies]
 dev = ["pytest"]

@@ -25,6 +25,9 @@ jobs:
       - name: Lint worker
         run: ruff check worker/
 
+      - name: Lint shared
+        run: ruff check shared/
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -80,10 +83,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build api image
-        run: docker build ./api
+        run: docker build -f api/Dockerfile .
 
       - name: Build worker image
-        run: docker build ./worker
+        run: docker build -f worker/Dockerfile .
 
   publish:
     name: Publish to GHCR
@@ -110,7 +113,8 @@ jobs:
       - name: Build and push api
         uses: docker/build-push-action@v6
         with:
-          context: ./api
+          context: .
+          file: api/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/nursepilot-api:latest
@@ -119,7 +123,8 @@ jobs:
       - name: Build and push worker
         uses: docker/build-push-action@v6
         with:
-          context: ./worker
+          context: .
+          file: worker/Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_PREFIX }}/nursepilot-worker:latest
