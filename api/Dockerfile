@@ -9,10 +9,11 @@ RUN pip install --no-cache-dir uv
 
 WORKDIR /app
 
-COPY pyproject.toml ./
-RUN uv pip install --system fastapi uvicorn[standard]
+COPY shared/ ./shared/
+COPY api/ ./api/
+RUN uv pip install --system ./shared fastapi uvicorn[standard]
 
-COPY . .
+WORKDIR /app/api
 
 EXPOSE 8000
 
