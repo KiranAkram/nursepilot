@@ -11,7 +11,7 @@ WORKDIR /app
 
 COPY shared/ ./shared/
 COPY worker/ ./worker/
-RUN uv pip install --system ./shared celery redis
+RUN uv pip install --system ./shared celery redis google-genai pypdf python-dotenv
 
 WORKDIR /app/worker
 
