@@ -1,12 +1,28 @@
 """Gemini-backed extraction: SNF referral PDF -> PatientChart."""
 
 import json
+import time
 
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from config import GEMINI_API_KEY, GEMINI_MODEL
 from schemas import PatientChart
+
+# Gemini returns 503 (overloaded) / 429 (rate limit) transiently; the SDK does
+# not retry them. Back off and retry: 2s, 4s, 8s, 16s.
+_RETRYABLE_CODES = {429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 5
+
+
+def _generate_with_retry(client: genai.Client, **kwargs):
+    for attempt in range(1, _MAX_ATTEMPTS + 1):
+        try:
+            return client.models.generate_content(**kwargs)
+        except errors.APIError as exc:
+            if exc.code not in _RETRYABLE_CODES or attempt == _MAX_ATTEMPTS:
+                raise
+            time.sleep(2**attempt)
 
 # PatientChart is too large/deep for Gemini's response_schema (constrained
 # decoding caps out: "too many states for serving"). Instead we put the schema
@@ -43,7 +59,8 @@ def extract_chart_from_pdf(
     `client`/`model` are injectable for testing.
     """
     client = client or genai.Client(api_key=GEMINI_API_KEY)
-    response = client.models.generate_content(
+    response = _generate_with_retry(
+        client,
         model=model or GEMINI_MODEL,
         contents=[
             types.Part.from_bytes(data=pdf_bytes, mime_type="application/pdf"),
