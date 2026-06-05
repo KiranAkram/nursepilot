@@ -28,4 +28,5 @@ api/.venv
 worker/.venv
 
 CLAUDE.md
-data/
+shared/data/
+worker/eval_out/
