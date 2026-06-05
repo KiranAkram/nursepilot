@@ -7,10 +7,19 @@ dependencies = [
     "celery>=5.6.3",
     "redis>=7.4.0",
     "shared",
+    "google-genai>=1.0.0",
+    "pypdf>=5.0.0",
+    "python-dotenv>=1.0.0",
 ]
 
 [tool.uv.sources]
 shared = { path = "../shared", editable = true }
+
+[tool.pytest.ini_options]
+addopts = "-m 'not eval'"
+markers = [
+    "eval: hits the real Gemini API against sample PDFs (requires GEMINI_API_KEY)",
+]
 
 [project.optional-dependencies]
 dev = ["pytest"]
