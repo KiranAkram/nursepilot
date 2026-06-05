@@ -11,7 +11,7 @@ WORKDIR /app
 
 COPY shared/ ./shared/
 COPY api/ ./api/
-RUN uv pip install --system ./shared fastapi uvicorn[standard]
+RUN uv pip install --system ./shared fastapi uvicorn[standard] celery redis python-multipart
 
 WORKDIR /app/api
 

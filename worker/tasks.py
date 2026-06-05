@@ -21,7 +21,7 @@ def add(x, y):
     return x + y
 
 
-@app.task
+@app.task(name="extract_chart")
 def extract_chart(pdf_b64: str) -> dict:
     """Extract a PatientChart from a base64-encoded SNF referral PDF.
 
