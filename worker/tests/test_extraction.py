@@ -1,6 +1,9 @@
 from datetime import date, datetime
 
-from extraction import extract_chart_from_pdf
+import pytest
+from pydantic import ValidationError
+
+from extraction import extract_chart_from_pdf, validate_with_salvage
 from schemas import PatientChart
 from schemas.common import SourceRef
 from schemas.patient_chart import Demographics, Encounter, Insurance
@@ -54,10 +57,11 @@ def test_extract_returns_parsed_chart():
     chart = _minimal_chart()
     client = _FakeClient(chart)
 
-    result = extract_chart_from_pdf(b"%PDF-fake", client=client, model="m")
+    result, flagged = extract_chart_from_pdf(b"%PDF-fake", client=client, model="m")
 
     assert isinstance(result, PatientChart)
     assert result.demographics.mrn == "MRN1"
+    assert flagged == []
     assert client.models.called_with["model"] == "m"
 
 
@@ -74,6 +78,43 @@ def test_extract_falls_back_to_json_when_parsed_missing():
 
     client.models.generate_content = lambda **kw: _NoParse(chart)
 
-    result = extract_chart_from_pdf(b"%PDF-fake", client=client)
+    result, _ = extract_chart_from_pdf(b"%PDF-fake", client=client)
     assert isinstance(result, PatientChart)
     assert result.encounter.discharge_disposition == "SNF"
+
+
+def _minimal_chart_dict() -> dict:
+    return _minimal_chart().model_dump(mode="json")
+
+
+def test_salvage_quarantines_bad_optional_value():
+    raw = _minimal_chart_dict()
+    raw["allergies"] = [
+        {
+            "substance": "Penicillin",
+            "criticality": "SUPER-HIGH",  # not a valid Literal
+            "source": {"page": 1, "quote": "x", "confidence": 0.9},
+        }
+    ]
+
+    chart, flagged = validate_with_salvage(raw)
+
+    # rest of the chart survived; bad value dropped to its default and recorded
+    assert chart.allergies[0].substance == "Penicillin"
+    assert chart.allergies[0].criticality == "unknown"
+    assert len(flagged) == 1
+    assert flagged[0]["path"] == "allergies.0.criticality"
+    assert flagged[0]["value"] == "SUPER-HIGH"
+
+
+def test_salvage_clean_chart_has_no_flags():
+    chart, flagged = validate_with_salvage(_minimal_chart_dict())
+    assert isinstance(chart, PatientChart)
+    assert flagged == []
+
+
+def test_salvage_still_raises_on_bad_required_field():
+    raw = _minimal_chart_dict()
+    raw["demographics"]["gender"] = "bogus"  # required, no default — unsalvageable
+    with pytest.raises(ValidationError):
+        validate_with_salvage(raw)

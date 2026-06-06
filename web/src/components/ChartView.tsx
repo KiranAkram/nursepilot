@@ -2,13 +2,14 @@ import { AlertTriangle, ShieldAlert } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { GroundingProvider } from "@/components/grounding"
+import { NeedsReview } from "@/components/NeedsReview"
 import { SourceChip } from "@/components/SourceChip"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import type { GroundingResult, PatientChart, SourceRef } from "@/types/chart"
+import type { FlaggedField, GroundingResult, PatientChart, SourceRef } from "@/types/chart"
 
 // ---------------------------------------------------------------------------
 // Small presentational helpers
@@ -593,9 +594,11 @@ const TABS = [
 export function ChartView({
   chart,
   grounding,
+  flagged,
 }: {
   chart: PatientChart
   grounding: GroundingResult[]
+  flagged: FlaggedField[]
 }) {
   return (
     <TooltipProvider delayDuration={150}>
@@ -603,6 +606,7 @@ export function ChartView({
         <div className="space-y-4">
           <Banner chart={chart} />
           <Alerts chart={chart} />
+          <NeedsReview flagged={flagged} />
           <Wounds chart={chart} />
           <Tabs defaultValue="overview">
             <div className="flex flex-wrap items-center justify-between gap-2">

@@ -5,12 +5,18 @@ import { ChartView } from "@/components/ChartView"
 import { Uploader } from "@/components/Uploader"
 import { Button } from "@/components/ui/button"
 import { pollJob, uploadPdf } from "@/lib/api"
-import type { GroundingResult, PatientChart } from "@/types/chart"
+import type { FlaggedField, GroundingResult, PatientChart } from "@/types/chart"
 
 type State =
   | { kind: "idle" }
   | { kind: "working" }
-  | { kind: "done"; chart: PatientChart; grounding: GroundingResult[]; file: string }
+  | {
+      kind: "done"
+      chart: PatientChart
+      grounding: GroundingResult[]
+      flagged: FlaggedField[]
+      file: string
+    }
   | { kind: "error"; message: string }
 
 export default function App() {
@@ -25,7 +31,13 @@ export default function App() {
         setState({ kind: "error", message: job.detail })
         return
       }
-      setState({ kind: "done", chart: job.chart, grounding: job.grounding, file: file.name })
+      setState({
+        kind: "done",
+        chart: job.chart,
+        grounding: job.grounding,
+        flagged: job.flagged,
+        file: file.name,
+      })
     } catch (e) {
       setState({ kind: "error", message: e instanceof Error ? e.message : "Unexpected error" })
     }
@@ -49,7 +61,7 @@ export default function App() {
       </header>
 
       {state.kind === "done" ? (
-        <ChartView chart={state.chart} grounding={state.grounding} />
+        <ChartView chart={state.chart} grounding={state.grounding} flagged={state.flagged} />
       ) : (
         <div className="space-y-4">
           <Uploader onSelect={handleSelect} busy={state.kind === "working"} />

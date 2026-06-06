@@ -245,7 +245,21 @@ export interface GroundingResult {
   confidence: number
 }
 
+// A value that failed validation and was quarantined for nurse review instead of
+// failing the whole extraction. Mirrors the worker's salvage records.
+export interface FlaggedField {
+  path: string // dotted path, e.g. "lab_report.results.15.flag"
+  value: unknown // the raw value Gemini extracted
+  reason: string // the validation error message
+}
+
 export type JobStatus =
   | { job_id: string; status: "processing" }
-  | { job_id: string; status: "done"; chart: PatientChart; grounding: GroundingResult[] }
+  | {
+      job_id: string
+      status: "done"
+      chart: PatientChart
+      grounding: GroundingResult[]
+      flagged: FlaggedField[]
+    }
   | { job_id: string; status: "error"; detail: string }
