@@ -27,16 +27,50 @@ def _normalize(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip().lower()
 
 
-def _grounds(quote: str, page_text: str, threshold: float = 0.85) -> bool:
-    """True if `quote` appears (exactly or near-exactly) in `page_text`."""
+# Splits a multi-field quote into its individual facts. Quotes commonly stitch
+# together several "Key.path: value" fields that live in different spots on the
+# page, so we verify each field on its own rather than as one contiguous block.
+# Splits on line breaks, semicolons, and before each dotted "Key.path:" label.
+_FIELD_BOUNDARY = re.compile(r"[\n\r;]+|(?=[A-Za-z][\w]*(?:\.[\w ]+)+\s*(?:\([^)]*\))?\s*:)")
+
+
+def _segments(quote: str) -> list[str]:
+    """Break a quote into normalized fact segments, dropping trivial fragments."""
+    segments = (_normalize(s) for s in _FIELD_BOUNDARY.split(quote))
+    return [s for s in segments if len(s) >= 4]
+
+
+def _segment_found(segment: str, page_text: str, threshold: float) -> bool:
+    if segment in page_text:
+        return True
+    match = SequenceMatcher(None, segment, page_text).find_longest_match(
+        0, len(segment), 0, len(page_text)
+    )
+    return (match.size / len(segment)) >= threshold
+
+
+def _grounds(
+    quote: str,
+    page_text: str,
+    threshold: float = 0.85,
+    coverage: float = 0.6,
+) -> bool:
+    """True if enough of `quote`'s fields appear (exactly or near-exactly) in `page_text`.
+
+    `threshold` is per-segment string similarity; `coverage` is the fraction of
+    segments that must be found for the whole quote to count as grounded.
+    """
     q = _normalize(quote)
     t = _normalize(page_text)
-    if not q:
+    if not q or not t:
         return False
-    if q in t:
+    if q in t:  # fast path: whole quote is one contiguous block
         return True
-    match = SequenceMatcher(None, q, t).find_longest_match(0, len(q), 0, len(t))
-    return (match.size / len(q)) >= threshold
+    segments = _segments(quote)
+    if not segments:
+        return False
+    found = sum(_segment_found(s, t, threshold) for s in segments)
+    return (found / len(segments)) >= coverage
 
 
 def _collect_sources(obj: object, path: str = "") -> list[tuple[str, SourceRef]]:

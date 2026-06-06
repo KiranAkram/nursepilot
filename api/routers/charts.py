@@ -27,6 +27,7 @@ class JobStatus(BaseModel):
     status: str  # "processing" | "done" | "error"
     chart: dict | None = None
     grounding: list[dict] | None = None
+    flagged: list[dict] | None = None
     detail: str | None = None
 
 
@@ -61,6 +62,7 @@ def get_chart(job_id: str) -> JobStatus:
             status="done",
             chart=payload.get("chart"),
             grounding=payload.get("grounding"),
+            flagged=payload.get("flagged"),
         )
     if result.failed():
         return JobStatus(job_id=job_id, status="error", detail=str(result.result))

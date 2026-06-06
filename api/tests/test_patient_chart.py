@@ -198,9 +198,9 @@ def test_lab_result_no_flag():
 
 
 @pytest.mark.parametrize("flag", ["ABNORMAL", "NORMAL", "H", "L"])
-def test_lab_result_invalid_flag(flag):
-    with pytest.raises(ValidationError):
-        LabResult(test="WBC", result="11.2", flag=flag)
+def test_lab_result_accepts_real_world_flags(flag):
+    # flag is intentionally a free str: real labs emit values beyond HIGH/LOW/CRITICAL.
+    assert LabResult(test="WBC", result="11.2", flag=flag).flag == flag
 
 
 # ---------------------------------------------------------------------------

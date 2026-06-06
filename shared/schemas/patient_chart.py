@@ -106,7 +106,7 @@ class LabResult(BaseModel):
     result: str                                     # "<0.04", "Clear, WBC neg", "MSSA — susceptibility on file"
     units: str | None = None
     reference_range: str | None = None
-    flag: Literal["HIGH", "LOW", "CRITICAL"] | None = None
+    flag: str | None = None  # "HIGH"/"LOW"/"CRITICAL", but real labs vary ("ABNORMAL", "H", ...)
 
 
 class LabReport(BaseModel):
