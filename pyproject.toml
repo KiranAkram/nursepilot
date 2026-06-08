@@ -4,7 +4,14 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "alembic>=1.13",
+    "python-dotenv>=1.0",
+    "shared",
+]
+
+[tool.uv.sources]
+shared = { path = "shared", editable = true }
 
 [tool.ruff]
 line-length = 88
@@ -14,4 +21,4 @@ select = ["E", "F", "I", "B", "UP", "S", "N"]
 ignore = ["S101", "E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["main", "schemas", "routers", "tasks", "config", "extraction", "verification"]
+known-first-party = ["main", "schemas", "db", "routers", "tasks", "config", "extraction", "verification"]
