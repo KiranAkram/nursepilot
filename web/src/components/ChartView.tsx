@@ -1,10 +1,12 @@
-import { AlertTriangle, ShieldAlert } from "lucide-react"
-import type { ReactNode } from "react"
+import { AlertTriangle, Loader2, Pencil, ShieldAlert, X } from "lucide-react"
+import { useEffect, useState, type ReactNode } from "react"
 
+import { EditProvider, setPath, useEdit } from "@/components/editing"
 import { GroundingProvider } from "@/components/grounding"
 import { NeedsReview } from "@/components/NeedsReview"
 import { SourceChip } from "@/components/SourceChip"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -36,20 +38,60 @@ function Field({
   value,
   source,
   path,
+  editPath,
+  numeric,
+  options,
 }: {
   label: string
   value: ReactNode
   source?: SourceRef
   path?: string
+  editPath?: string // dot-path into the chart; enables inline editing
+  numeric?: boolean
+  options?: string[] // renders a <select> instead of an <input>
 }) {
-  if (value === null || value === undefined || value === "") return null
+  const { editing, set } = useEdit()
+  const editable = editing && editPath
+
+  // In read mode, hide empty fields; in edit mode keep them so they can be filled.
+  if (!editable && (value === null || value === undefined || value === "")) return null
+
+  const inputCls =
+    "h-8 rounded-md border border-input bg-background px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+
   return (
     <div className="flex flex-col gap-0.5">
       <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-      <span className="flex items-center gap-2 text-sm">
-        {value}
-        {source && path && <SourceChip source={source} path={path} />}
-      </span>
+      {editable ? (
+        options ? (
+          <select
+            className={inputCls}
+            value={String(value ?? "")}
+            onChange={(e) => set(editPath, e.target.value)}
+          >
+            {options.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input
+            className={inputCls}
+            type={numeric ? "number" : "text"}
+            value={value === null || value === undefined ? "" : String(value)}
+            onChange={(e) => {
+              const raw = e.target.value
+              set(editPath, numeric ? (raw === "" ? null : Number(raw)) : raw === "" ? null : raw)
+            }}
+          />
+        )
+      ) : (
+        <span className="flex items-center gap-2 text-sm">
+          {value}
+          {source && path && <SourceChip source={source} path={path} />}
+        </span>
+      )}
     </div>
   )
 }
@@ -149,6 +191,37 @@ function Alerts({ chart }: { chart: PatientChart }) {
 // ---------------------------------------------------------------------------
 // Sections
 // ---------------------------------------------------------------------------
+
+function Demographics({ chart }: { chart: PatientChart }) {
+  const d = chart.demographics
+  return (
+    <Section title="Demographics">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <Field label="Family name" value={d.family_name} editPath="demographics.family_name" />
+        <Field label="Given name" value={d.given_name} editPath="demographics.given_name" />
+        <Field label="DOB" value={d.dob} editPath="demographics.dob" />
+        <Field
+          label="Gender"
+          value={d.gender}
+          editPath="demographics.gender"
+          options={["male", "female", "other", "unknown"]}
+        />
+        <Field label="MRN" value={d.mrn} editPath="demographics.mrn" />
+        <Field label="Phone" value={d.phone} editPath="demographics.phone" />
+        <Field label="Address" value={d.address} editPath="demographics.address" />
+        <Field label="Language" value={d.language} editPath="demographics.language" />
+        <Field
+          label="Marital status"
+          value={d.marital_status}
+          editPath="demographics.marital_status"
+        />
+        <Field label="Race" value={d.race} editPath="demographics.race" />
+        <Field label="Ethnicity" value={d.ethnicity} editPath="demographics.ethnicity" />
+        <Field label="Occupation" value={d.occupation} editPath="demographics.occupation" />
+      </div>
+    </Section>
+  )
+}
 
 function Overview({ chart }: { chart: PatientChart }) {
   const { encounter: e, insurance: ins } = chart
@@ -388,15 +461,15 @@ function Vitals({ chart }: { chart: PatientChart }) {
   return (
     <Section title="Vital Signs">
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        <Field label="BP" value={v.bp} />
-        <Field label="HR" value={v.hr} />
-        <Field label="Temp °F" value={v.temp_f} />
-        <Field label="RR" value={v.rr} />
-        <Field label="SpO₂" value={v.spo2} />
-        <Field label="Weight (lbs)" value={v.weight_lbs} />
-        <Field label="BMI" value={v.bmi} />
-        <Field label="Pain" value={v.pain} />
-        <Field label="Edema" value={v.edema} />
+        <Field label="BP" value={v.bp} editPath="vital_signs.bp" />
+        <Field label="HR" value={v.hr} editPath="vital_signs.hr" />
+        <Field label="Temp °F" value={v.temp_f} editPath="vital_signs.temp_f" numeric />
+        <Field label="RR" value={v.rr} editPath="vital_signs.rr" />
+        <Field label="SpO₂" value={v.spo2} editPath="vital_signs.spo2" />
+        <Field label="Weight (lbs)" value={v.weight_lbs} editPath="vital_signs.weight_lbs" numeric />
+        <Field label="BMI" value={v.bmi} editPath="vital_signs.bmi" numeric />
+        <Field label="Pain" value={v.pain} editPath="vital_signs.pain" />
+        <Field label="Edema" value={v.edema} editPath="vital_signs.edema" />
         <Field label="Weight loss" value={v.weight_loss} />
         <Field label="NIHSS (d/c)" value={v.nihss_discharge} />
         <Field label="mRS (d/c)" value={v.mrs_discharge} source={v.source} path="vital_signs.source" />
@@ -580,6 +653,7 @@ function GroundingSummary({ grounding }: { grounding: GroundingResult[] }) {
 
 const TABS = [
   { value: "overview", label: "Overview", render: Overview },
+  { value: "demographics", label: "Demographics", render: Demographics },
   { value: "diagnoses", label: "Diagnoses", render: Diagnoses },
   { value: "medications", label: "Medications", render: Medications },
   { value: "labs", label: "Labs", render: Labs },
@@ -595,37 +669,108 @@ export function ChartView({
   chart,
   grounding,
   flagged,
+  onSave,
 }: {
   chart: PatientChart
   grounding: GroundingResult[]
   flagged: FlaggedField[]
+  onSave?: (chart: PatientChart) => Promise<void>
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(chart)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setDraft(chart)
+    setEditing(false)
+    setError(null)
+  }, [chart])
+
+  const set = (path: string, value: unknown) => setDraft((d) => setPath(d, path, value))
+  const active = editing ? draft : chart
+
+  async function save() {
+    if (!onSave) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(draft)
+      setEditing(false)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed")
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
     <TooltipProvider delayDuration={150}>
       <GroundingProvider grounding={grounding}>
-        <div className="space-y-4">
-          <Banner chart={chart} />
-          <Alerts chart={chart} />
-          <NeedsReview flagged={flagged} />
-          <Wounds chart={chart} />
-          <Tabs defaultValue="overview">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <TabsList>
-                {TABS.map((t) => (
-                  <TabsTrigger key={t.value} value={t.value}>
-                    {t.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              <GroundingSummary grounding={grounding} />
+        <EditProvider value={{ editing, set }}>
+          <div className="space-y-4">
+            <div className="flex items-center justify-end gap-2">
+              {editing ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setDraft(chart)
+                      setEditing(false)
+                      setError(null)
+                    }}
+                    disabled={saving}
+                  >
+                    <X /> Cancel
+                  </Button>
+                  <Button size="sm" onClick={save} disabled={saving}>
+                    {saving ? <Loader2 className="animate-spin" /> : null} Save changes
+                  </Button>
+                </>
+              ) : (
+                onSave && (
+                  <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+                    <Pencil /> Edit chart
+                  </Button>
+                )
+              )}
             </div>
-            {TABS.map(({ value, render: Render }) => (
-              <TabsContent key={value} value={value}>
-                <Render chart={chart} />
-              </TabsContent>
-            ))}
-          </Tabs>
-        </div>
+            {error && (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            {editing && (
+              <p className="text-sm text-muted-foreground">
+                Editing Demographics and Vitals. Source chips reflect the original extraction and
+                aren't re-verified after edits.
+              </p>
+            )}
+
+            <Banner chart={active} />
+            <Alerts chart={active} />
+            <NeedsReview flagged={flagged} />
+            <Wounds chart={active} />
+            <Tabs defaultValue="overview">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <TabsList>
+                  {TABS.map((t) => (
+                    <TabsTrigger key={t.value} value={t.value}>
+                      {t.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                <GroundingSummary grounding={grounding} />
+              </div>
+              {TABS.map(({ value, render: Render }) => (
+                <TabsContent key={value} value={value}>
+                  <Render chart={active} />
+                </TabsContent>
+              ))}
+            </Tabs>
+          </div>
+        </EditProvider>
       </GroundingProvider>
     </TooltipProvider>
   )

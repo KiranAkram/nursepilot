@@ -28,6 +28,9 @@ jobs:
       - name: Lint shared
         run: ruff check shared/
 
+      - name: Lint migrations
+        run: ruff check migrations/
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -63,6 +66,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           version: latest
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
 
       - name: Test api
         working-directory: api

@@ -253,6 +253,16 @@ export interface FlaggedField {
   reason: string // the validation error message
 }
 
+export interface JobSummary {
+  job_id: string
+  status: "processing" | "done" | "error"
+  filename: string | null
+  patient_name: string | null
+  mrn: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
 export type JobStatus =
   | { job_id: string; status: "processing" }
   | {
