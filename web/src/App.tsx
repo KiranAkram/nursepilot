@@ -1,46 +1,75 @@
-import { Activity, RotateCcw } from "lucide-react"
+import { Activity, ArrowLeft } from "lucide-react"
 import { useState } from "react"
 
 import { ChartView } from "@/components/ChartView"
+import { HistoryList } from "@/components/HistoryList"
 import { Uploader } from "@/components/Uploader"
 import { Button } from "@/components/ui/button"
-import { pollJob, uploadPdf } from "@/lib/api"
+import { getJob, pollJob, updateChart, uploadPdf } from "@/lib/api"
 import type { FlaggedField, GroundingResult, PatientChart } from "@/types/chart"
 
-type State =
-  | { kind: "idle" }
-  | { kind: "working" }
-  | {
-      kind: "done"
-      chart: PatientChart
-      grounding: GroundingResult[]
-      flagged: FlaggedField[]
-      file: string
-    }
-  | { kind: "error"; message: string }
+type Loaded = {
+  jobId: string
+  chart: PatientChart
+  grounding: GroundingResult[]
+  flagged: FlaggedField[]
+  label: string
+}
+
+type View =
+  | { kind: "list" }
+  | { kind: "upload"; busy: boolean; error?: string }
+  | { kind: "chart"; data: Loaded }
 
 export default function App() {
-  const [state, setState] = useState<State>({ kind: "idle" })
+  const [view, setView] = useState<View>({ kind: "list" })
 
-  async function handleSelect(file: File) {
-    setState({ kind: "working" })
+  async function handleUpload(file: File) {
+    setView({ kind: "upload", busy: true })
     try {
       const jobId = await uploadPdf(file)
       const job = await pollJob(jobId)
       if (job.status === "error") {
-        setState({ kind: "error", message: job.detail })
+        setView({ kind: "upload", busy: false, error: job.detail })
         return
       }
-      setState({
-        kind: "done",
+      setView({
+        kind: "chart",
+        data: {
+          jobId,
+          chart: job.chart,
+          grounding: job.grounding,
+          flagged: job.flagged,
+          label: file.name,
+        },
+      })
+    } catch (e) {
+      setView({ kind: "upload", busy: false, error: e instanceof Error ? e.message : "Error" })
+    }
+  }
+
+  async function handleOpen(jobId: string) {
+    const job = await getJob(jobId)
+    if (job.status !== "done") return
+    setView({
+      kind: "chart",
+      data: {
+        jobId,
         chart: job.chart,
         grounding: job.grounding,
         flagged: job.flagged,
-        file: file.name,
-      })
-    } catch (e) {
-      setState({ kind: "error", message: e instanceof Error ? e.message : "Unexpected error" })
-    }
+        label: job.chart.demographics
+          ? `${job.chart.demographics.family_name}, ${job.chart.demographics.given_name}`
+          : jobId,
+      },
+    })
+  }
+
+  async function handleSave(jobId: string, chart: PatientChart) {
+    const updated = await updateChart(jobId, chart)
+    setView((v) =>
+      v.kind === "chart" ? { kind: "chart", data: { ...v.data, chart: updated.chart } } : v,
+    )
   }
 
   return (
@@ -49,28 +78,39 @@ export default function App() {
         <div className="flex items-center gap-2">
           <Activity className="size-6 text-primary" />
           <h1 className="text-lg font-semibold">NursePilot</h1>
-          {state.kind === "done" && (
-            <span className="text-sm text-muted-foreground">· {state.file}</span>
+          {view.kind === "chart" && (
+            <span className="text-sm text-muted-foreground">· {view.data.label}</span>
           )}
         </div>
-        {state.kind !== "idle" && (
-          <Button variant="ghost" size="sm" onClick={() => setState({ kind: "idle" })}>
-            <RotateCcw /> New upload
+        {view.kind !== "list" && (
+          <Button variant="ghost" size="sm" onClick={() => setView({ kind: "list" })}>
+            <ArrowLeft /> All extractions
           </Button>
         )}
       </header>
 
-      {state.kind === "done" ? (
-        <ChartView chart={state.chart} grounding={state.grounding} flagged={state.flagged} />
-      ) : (
+      {view.kind === "list" && (
+        <HistoryList onOpen={handleOpen} onNew={() => setView({ kind: "upload", busy: false })} />
+      )}
+
+      {view.kind === "upload" && (
         <div className="space-y-4">
-          <Uploader onSelect={handleSelect} busy={state.kind === "working"} />
-          {state.kind === "error" && (
+          <Uploader onSelect={handleUpload} busy={view.busy} />
+          {view.error && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              {state.message}
+              {view.error}
             </p>
           )}
         </div>
+      )}
+
+      {view.kind === "chart" && (
+        <ChartView
+          chart={view.data.chart}
+          grounding={view.data.grounding}
+          flagged={view.data.flagged}
+          onSave={(chart) => handleSave(view.data.jobId, chart)}
+        />
       )}
     </div>
   )

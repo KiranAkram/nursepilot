@@ -1,4 +1,4 @@
-import type { JobStatus } from "@/types/chart"
+import type { JobStatus, JobSummary, PatientChart } from "@/types/chart"
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000"
 
@@ -18,6 +18,30 @@ export async function getJob(jobId: string): Promise<JobStatus> {
   const res = await fetch(`${API_URL}/charts/${jobId}`)
   if (!res.ok) throw new Error(`Poll failed (${res.status})`)
   return (await res.json()) as JobStatus
+}
+
+export async function listCharts(): Promise<JobSummary[]> {
+  const res = await fetch(`${API_URL}/charts`)
+  if (!res.ok) throw new Error(`List failed (${res.status})`)
+  return (await res.json()) as JobSummary[]
+}
+
+export async function updateChart(
+  jobId: string,
+  chart: PatientChart,
+): Promise<Extract<JobStatus, { status: "done" }>> {
+  const res = await fetch(`${API_URL}/charts/${jobId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(chart),
+  })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof detail.detail === "string" ? detail.detail : `Save failed (${res.status})`,
+    )
+  }
+  return (await res.json()) as Extract<JobStatus, { status: "done" }>
 }
 
 /** Poll until the job is done or errors. Resolves with the terminal status. */

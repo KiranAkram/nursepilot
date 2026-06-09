@@ -28,6 +28,9 @@ jobs:
       - name: Lint shared
         run: ruff check shared/
 
+      - name: Lint migrations
+        run: ruff check migrations/
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -39,6 +42,8 @@ jobs:
           POSTGRES_USER: nursepilot
           POSTGRES_PASSWORD: nursepilot
           POSTGRES_DB: nursepilot_test
+        ports:
+          - 5432:5432
         options: >-
           --health-cmd "pg_isready -U nursepilot -d nursepilot_test"
           --health-interval 5s
@@ -47,6 +52,8 @@ jobs:
 
       redis:
         image: redis:7
+        ports:
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 5s
@@ -63,6 +70,9 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with:
           version: latest
+
+      - name: Apply migrations
+        run: uv run alembic upgrade head
 
       - name: Test api
         working-directory: api
