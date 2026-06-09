@@ -36,7 +36,7 @@ jobs:
             --set-env-vars \
               DATABASE_URL="${{ secrets.DATABASE_URL }}" \
               REDIS_URL="${{ secrets.REDIS_URL }}" \
-              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
 
       - name: Deploy worker
         run: |
@@ -47,7 +47,16 @@ jobs:
             --set-env-vars \
               DATABASE_URL="${{ secrets.DATABASE_URL }}" \
               REDIS_URL="${{ secrets.REDIS_URL }}" \
-              OPENAI_API_KEY="${{ secrets.OPENAI_API_KEY }}"
+              GEMINI_API_KEY="${{ secrets.GEMINI_API_KEY }}"
+
+      - name: Deploy web
+        run: |
+          az containerapp update \
+            --name nursepilot-prod-web \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --image ${{ env.IMAGE_PREFIX }}/nursepilot-web:${{ inputs.image_sha }} \
+            --set-env-vars \
+              API_URL="${{ vars.API_URL }}"
 
       - name: Health check
         id: healthcheck

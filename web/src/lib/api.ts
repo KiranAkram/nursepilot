@@ -1,6 +1,15 @@
 import type { JobStatus, JobSummary, PatientChart } from "@/types/chart"
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000"
+// Prefer the runtime-injected config (set by the container at startup), so one
+// built image serves every environment. Falls back to the build-time VITE_API_URL
+// for local `npm run dev`, where the placeholder is left untouched.
+function resolveApiUrl(): string {
+  const injected = window.__APP_CONFIG__?.apiUrl
+  if (injected && injected !== "__API_URL__") return injected
+  return (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000"
+}
+
+const API_URL = resolveApiUrl()
 
 export async function uploadPdf(file: File): Promise<string> {
   const body = new FormData()
