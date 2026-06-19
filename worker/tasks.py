@@ -12,7 +12,18 @@ from verification import extract_page_texts, verify_chart
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
 
-app = Celery("worker", broker=REDIS_URL, backend=REDIS_URL)
+# Single worker, results persisted to Postgres (not read back from Celery), so
+# we drop everything that chatters at the broker while idle:
+#   - no Redis result backend (the API reads charts from Postgres, not AsyncResult)
+#   - no remote-control pidbox / task events (a fanout channel that gets polled)
+# This keeps Redis traffic tied to actual task enqueue/consume, not coordination.
+app = Celery("worker", broker=REDIS_URL)
+app.conf.update(
+    task_ignore_result=True,
+    worker_enable_remote_control=False,
+    worker_send_task_events=False,
+    broker_connection_retry_on_startup=True,
+)
 
 
 @app.task
