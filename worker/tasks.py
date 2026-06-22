@@ -23,6 +23,7 @@ app.conf.update(
     worker_enable_remote_control=False,
     worker_send_task_events=False,
     broker_connection_retry_on_startup=True,
+    broker_transport_options={"polling_interval": 5.0},
 )
 
 
@@ -90,7 +91,9 @@ def extract_chart(self, pdf_b64: str) -> dict:
         pdf_bytes = base64.b64decode(pdf_b64)
         chart, flagged = extract_chart_from_pdf(pdf_bytes)
         chart_json = chart.model_dump(mode="json")
-        grounding = [g.model_dump() for g in verify_chart(chart, extract_page_texts(pdf_bytes))]
+        grounding = [
+            g.model_dump() for g in verify_chart(chart, extract_page_texts(pdf_bytes))
+        ]
     except Exception as exc:
         if task_id:
             _persist(task_id, status="error", error=str(exc))
