@@ -1,15 +1,13 @@
 [project]
 name = "api"
 version = "0.1.0"
-description = "Add your description here"
+description = "NursePilot HTTP API (hosts the extraction worker in-process)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.136.0",
     "pydantic>=2.13.2",
     "uvicorn[standard]>=0.44.0",
-    "celery>=5.6.3",
-    "redis>=7.4.0",
     "python-multipart>=0.0.20",
     "shared",
 ]

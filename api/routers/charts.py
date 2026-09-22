@@ -1,24 +1,23 @@
 """Upload a discharge PDF, then read/edit its extracted PatientChart.
 
-Postgres-backed (via the shared `extractions` table). Celery does the work; the
-DB is the source of truth for status and results.
-- POST /charts            enqueue extraction, return a job id
+Postgres-backed (via the shared `extractions` table). The table is also the job
+queue: an upload stores the PDF bytes on a `pending` row and fires a NOTIFY; the
+in-process worker (see main.py lifespan) claims it from there.
+- POST /charts            store the PDF, notify the worker, return a job id
 - GET  /charts            list extractions (history)
 - GET  /charts/{job_id}   status + chart/grounding/flagged when done
 - PUT  /charts/{job_id}   overwrite the (nurse-edited) chart
 """
 
-import base64
 import uuid
 from datetime import datetime
 from typing import Annotated
 
-from celery_app import EXTRACT_TASK, celery_app
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
-from db import get_session
+from db import get_session, notify_new_job
 from db.models import Extraction
 from schemas import PatientChart
 
@@ -106,13 +105,14 @@ async def create_chart(
     if not pdf_bytes.startswith(b"%PDF"):
         raise HTTPException(status_code=415, detail="File is not a valid PDF.")
 
-    # Create the row first (known id) so the worker only ever updates it.
+    # Row + PDF bytes + wake-up in one transaction: the worker can never see a
+    # notification without its row, and a failed commit leaves nothing behind.
     job_id = uuid.uuid4().hex
-    session.add(Extraction(id=job_id, status="pending", filename=file.filename))
+    session.add(
+        Extraction(id=job_id, status="pending", filename=file.filename, pdf=pdf_bytes)
+    )
+    notify_new_job(session, job_id)
     session.commit()
-
-    pdf_b64 = base64.b64encode(pdf_bytes).decode("ascii")
-    celery_app.send_task(EXTRACT_TASK, args=[pdf_b64], task_id=job_id)
     return JobCreated(job_id=job_id)
 
 

@@ -1,11 +1,9 @@
 [project]
 name = "worker"
 version = "0.1.0"
-description = "Celery worker"
+description = "Extraction worker (Postgres LISTEN/NOTIFY job queue)"
 requires-python = ">=3.12"
 dependencies = [
-    "celery>=5.6.3",
-    "redis>=7.4.0",
     "shared",
     "google-genai>=1.0.0",
     "pypdf>=5.0.0",

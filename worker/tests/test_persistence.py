@@ -1,4 +1,3 @@
-import base64
 import os
 
 import pytest
@@ -6,14 +5,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlmodel import Session, SQLModel
 
-import tasks
 from db.models import Extraction
-from tasks import _patient_fields, _persist
-
-
-class _FakeChart:
-    def model_dump(self, mode="json"):
-        return {"demographics": {"family_name": "A", "given_name": "B", "mrn": "M"}}
+from jobs import _patient_fields, _persist
 
 # ---------------------------------------------------------------------------
 # Offline: pure field mapping
@@ -21,7 +14,13 @@ class _FakeChart:
 
 
 def test_patient_fields():
-    chart = {"demographics": {"family_name": "Henderson", "given_name": "Dorothy", "mrn": "M1"}}
+    chart = {
+        "demographics": {
+            "family_name": "Henderson",
+            "given_name": "Dorothy",
+            "mrn": "M1",
+        }
+    }
     assert _patient_fields(chart) == ("Henderson, Dorothy", "M1")
 
 
@@ -31,27 +30,6 @@ def test_patient_fields_partial():
 
 def test_patient_fields_empty():
     assert _patient_fields({}) == (None, None)
-
-
-def test_task_persists_status_sequence(monkeypatch):
-    """The bound task should persist processing -> done with the chart payload."""
-    calls = []
-    monkeypatch.setattr(
-        tasks, "_persist", lambda task_id, **kw: calls.append((kw.get("status"), kw))
-    )
-    monkeypatch.setattr(tasks, "extract_chart_from_pdf", lambda pdf: (_FakeChart(), []))
-    monkeypatch.setattr(tasks, "extract_page_texts", lambda pdf: [])
-    monkeypatch.setattr(tasks, "verify_chart", lambda chart, texts: [])
-
-    result = tasks.extract_chart.apply(args=[base64.b64encode(b"x").decode()])
-
-    assert result.successful()
-    assert [status for status, _ in calls] == ["processing", "done"]
-    done_kwargs = calls[-1][1]
-    assert done_kwargs["chart"] == {
-        "demographics": {"family_name": "A", "given_name": "B", "mrn": "M"}
-    }
-    assert done_kwargs["grounding"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -84,12 +62,14 @@ def test_persist_lifecycle(engine):
     tid = "test-persist-lifecycle"
     _cleanup(engine, tid)
 
-    _persist(tid, status="processing", engine=engine)
     with Session(engine) as s:
-        assert s.get(Extraction, tid).status == "processing"
+        s.add(Extraction(id=tid, status="processing", pdf=b"%PDF"))
+        s.commit()
 
     chart = {"demographics": {"family_name": "Doe", "given_name": "Jane", "mrn": "M9"}}
-    _persist(tid, status="done", chart=chart, grounding=[{"f": 1}], flagged=[], engine=engine)
+    _persist(
+        tid, status="done", chart=chart, grounding=[{"f": 1}], flagged=[], engine=engine
+    )
     with Session(engine) as s:
         row = s.get(Extraction, tid)
         assert row.status == "done"
@@ -97,6 +77,7 @@ def test_persist_lifecycle(engine):
         assert row.chart == chart
         assert row.grounding == [{"f": 1}]
         assert (row.patient_name, row.mrn) == ("Doe, Jane", "M9")
+        assert row.pdf is None  # finished jobs drop their bytes
 
     _cleanup(engine, tid)
 
