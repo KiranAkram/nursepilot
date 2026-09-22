@@ -110,14 +110,15 @@ def _insert(engine, **kwargs) -> str:
     return job_id
 
 
-def test_create_inserts_row_and_enqueues(db, monkeypatch):
-    sent = {}
+def test_create_stores_pdf_on_pending_row_and_notifies(db, monkeypatch):
+    notified = []
+    real_notify = charts.notify_new_job
 
-    def fake_send_task(name, args, task_id):
-        sent.update(name=name, args=args, task_id=task_id)
-        return MagicMock(id=task_id)
+    def spy_notify(session, job_id):
+        notified.append(job_id)
+        real_notify(session, job_id)  # still hit the DB so the SQL is exercised
 
-    monkeypatch.setattr(charts.celery_app, "send_task", fake_send_task)
+    monkeypatch.setattr(charts, "notify_new_job", spy_notify)
 
     resp = client.post(
         "/charts",
@@ -126,12 +127,13 @@ def test_create_inserts_row_and_enqueues(db, monkeypatch):
 
     assert resp.status_code == 202
     job_id = resp.json()["job_id"]
-    assert sent["name"] == "extract_chart"
-    assert sent["task_id"] == job_id
+    assert notified == [job_id]
     with Session(db) as s:
         row = s.get(Extraction, job_id)
         assert row.status == "pending"
         assert row.filename == "packet.pdf"
+        assert row.pdf == PDF_BYTES
+        assert row.retry_count == 0
 
 
 def test_get_processing(db):
@@ -188,7 +190,7 @@ def test_put_409_when_not_done(db):
 
 def test_list_charts(db):
     _insert(db, status="done", patient_name="Alpha One", chart=_chart())
-    _insert(db, status="processing", patient_name="Beta Two")
+    _insert(db, status="processing", patient_name="Beta Two", pdf=b"%PDF")
     rows = client.get("/charts").json()
     names = {r["patient_name"] for r in rows}
     assert {"Alpha One", "Beta Two"} <= names

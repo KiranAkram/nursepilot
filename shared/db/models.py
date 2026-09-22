@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Column, DateTime, func
+from sqlalchemy import Column, DateTime, LargeBinary, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlmodel import Field, SQLModel
 
@@ -10,7 +10,7 @@ from sqlmodel import Field, SQLModel
 class Extraction(SQLModel, table=True):
     __tablename__ = "extractions"
 
-    # Celery task id doubles as the job/record id.
+    # API-generated job id (uuid4 hex); the row is created before the worker sees it.
     id: str = Field(primary_key=True)
     status: str = Field(default="pending", index=True)  # pending|processing|done|error
     filename: str | None = None
@@ -27,6 +27,11 @@ class Extraction(SQLModel, table=True):
     grounding: list | None = Field(default=None, sa_column=Column(JSONB))
     flagged: list | None = Field(default=None, sa_column=Column(JSONB))
     error: str | None = None
+
+    # Job-queue state. The PDF is held only while the job is pending/processing
+    # (cleared on done/final error); retry_count caps re-runs after a failure.
+    pdf: bytes | None = Field(default=None, sa_column=Column(LargeBinary))
+    retry_count: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
 
     created_at: datetime | None = Field(
         default=None,
