@@ -1,12 +1,13 @@
 import { Activity, ArrowLeft } from "lucide-react"
-import { useState } from "react"
+import { useRef, useState } from "react"
 
 import { ChartView } from "@/components/ChartView"
 import { HistoryList } from "@/components/HistoryList"
+import { IntakeSplash, type SplashKind } from "@/components/IntakeSplash"
 import { Uploader } from "@/components/Uploader"
 import { Button } from "@/components/ui/button"
 import { getJob, pollJob, updateChart, uploadPdf } from "@/lib/api"
-import type { FlaggedField, GroundingResult, PatientChart } from "@/types/chart"
+import type { FlaggedField, GroundingResult, JobPhase, PatientChart } from "@/types/chart"
 
 type Loaded = {
   jobId: string
@@ -22,21 +23,42 @@ const isAdmin = new URLSearchParams(window.location.search).get("admin") === "1"
 
 type View =
   | { kind: "list" }
-  | { kind: "upload"; busy: boolean; error?: string }
+  | { kind: "upload"; busy: boolean; phase?: JobPhase; error?: string }
   | { kind: "chart"; data: Loaded }
 
 export default function App() {
   const [view, setView] = useState<View>({ kind: "list" })
+  const [splash, setSplash] = useState<SplashKind | null>(null)
+  // Kept so the "paused" splash can re-submit the same file.
+  const lastFile = useRef<File | null>(null)
 
   async function handleUpload(file: File) {
+    lastFile.current = file
+    setSplash(null)
     setView({ kind: "upload", busy: true })
     try {
       const jobId = await uploadPdf(file)
-      const job = await pollJob(jobId)
-      if (job.status === "error" || job.status === "rejected") {
-        setView({ kind: "upload", busy: false, error: job.detail })
+      const job = await pollJob(jobId, {
+        onPhase: (phase) => {
+          setView((v) => (v.kind === "upload" ? { ...v, phase } : v))
+          if (phase === "extracting") setSplash("accepted") // screening said yes
+        },
+      })
+      if (job.status === "rejected") {
+        setSplash("rejected")
+        setView({ kind: "upload", busy: false })
         return
       }
+      if (job.status === "error") {
+        if (job.screening?.outcome === "unavailable") {
+          setSplash("paused")
+          setView({ kind: "upload", busy: false })
+        } else {
+          setView({ kind: "upload", busy: false, error: job.detail })
+        }
+        return
+      }
+      setSplash(null)
       setView({
         kind: "chart",
         data: {
@@ -103,13 +125,24 @@ export default function App() {
 
       {view.kind === "upload" && (
         <div className="space-y-4">
-          <Uploader onSelect={handleUpload} busy={view.busy} />
+          <Uploader onSelect={handleUpload} busy={view.busy} phase={view.phase} />
           {view.error && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
               {view.error}
             </p>
           )}
         </div>
+      )}
+
+      {splash && (
+        <IntakeSplash
+          kind={splash}
+          onClose={() => setSplash(null)}
+          onRetry={() => {
+            setSplash(null)
+            if (lastFile.current) handleUpload(lastFile.current)
+          }}
+        />
       )}
 
       {view.kind === "chart" && (

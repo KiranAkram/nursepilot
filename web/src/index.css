@@ -34,3 +34,94 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+/* --- Intake splash (retro "item get" popup, see components/IntakeSplash.tsx) --- */
+.pixel-card {
+  width: 100%;
+  max-width: 22rem;
+  padding: 1.5rem 1.5rem 1.25rem;
+  text-align: center;
+  background: #fff;
+  color: #161a2b;
+  border: 4px solid #161a2b;
+  box-shadow: 6px 6px 0 #161a2b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  animation: px-pop 0.25s steps(3);
+}
+.pixel-card--paused {
+  background: #0b1020;
+  color: #e6f0ff;
+  border-color: #e6f0ff;
+  box-shadow: 6px 6px 0 #3b4a7a;
+}
+.pixel-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 6rem;
+}
+.pixel-art {
+  width: 5rem;
+  height: 3.75rem;
+  shape-rendering: crispEdges;
+}
+.pixel-tag {
+  font-size: 0.7rem;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.pixel-title {
+  margin-top: 0.25rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.pixel-body {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+.pixel-art--medkit {
+  animation: px-bounce 0.6s steps(4) infinite;
+}
+.pixel-art--mystery {
+  animation: px-wobble 0.5s steps(3) 3;
+}
+.pixel-sparkle {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  background: #f5c518;
+  animation: px-sparkle 1s steps(3) infinite;
+}
+.pixel-cursor {
+  animation: px-blink 1s steps(1) infinite;
+}
+@keyframes px-pop {
+  from { transform: scale(0.8); }
+  to { transform: scale(1); }
+}
+@keyframes px-bounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+@keyframes px-wobble {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+@keyframes px-sparkle {
+  0% { transform: scale(0); opacity: 0; }
+  40% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0); opacity: 0; }
+}
+@keyframes px-blink {
+  50% { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pixel-card, .pixel-art--medkit, .pixel-art--mystery, .pixel-sparkle, .pixel-cursor {
+    animation: none;
+  }
+}

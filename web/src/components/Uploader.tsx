@@ -4,14 +4,19 @@ import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import type { JobPhase } from "@/types/chart"
 
 export function Uploader({
   onSelect,
   busy,
+  phase,
 }: {
   onSelect: (file: File) => void
   busy: boolean
+  /** Current pipeline phase while busy; drives the status text. */
+  phase?: JobPhase
 }) {
+  const extracting = phase === "extracting"
   const inputRef = useRef<HTMLInputElement>(null)
   const [dragging, setDragging] = useState(false)
 
@@ -47,10 +52,18 @@ export function Uploader({
           )}
           <div>
             <p className="font-medium">
-              {busy ? "Extracting chart…" : "Drop a discharge packet PDF"}
+              {!busy
+                ? "Drop a discharge packet PDF"
+                : extracting
+                  ? "Extracting chart…"
+                  : "Checking the packet…"}
             </p>
             <p className="text-sm text-muted-foreground">
-              {busy ? "This can take up to a minute." : "or choose a file to upload"}
+              {!busy
+                ? "or choose a file to upload"
+                : extracting
+                  ? "This can take up to a minute."
+                  : "Making sure this is a discharge packet."}
             </p>
           </div>
           <input
