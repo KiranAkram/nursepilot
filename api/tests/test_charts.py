@@ -194,3 +194,21 @@ def test_list_charts(db):
     rows = client.get("/charts").json()
     names = {r["patient_name"] for r in rows}
     assert {"Alpha One", "Beta Two"} <= names
+
+
+def test_delete_removes_finished_row(db):
+    job_id = _insert(db, status="done", chart=_chart(), grounding=[], flagged=[])
+    assert client.delete(f"/charts/{job_id}").status_code == 204
+    with Session(db) as s:
+        assert s.get(Extraction, job_id) is None
+
+
+def test_delete_unknown_404(db):
+    assert client.delete("/charts/does-not-exist").status_code == 404
+
+
+def test_delete_409_while_running(db):
+    job_id = _insert(db, status="processing", pdf=b"%PDF")
+    assert client.delete(f"/charts/{job_id}").status_code == 409
+    with Session(db) as s:
+        assert s.get(Extraction, job_id) is not None

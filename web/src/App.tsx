@@ -16,6 +16,10 @@ type Loaded = {
   label: string
 }
 
+// Delete controls are hidden from casual visitors; `?admin=1` reveals them.
+// Not a security boundary — the API has no auth — just keeps the demo tidy.
+const isAdmin = new URLSearchParams(window.location.search).get("admin") === "1"
+
 type View =
   | { kind: "list" }
   | { kind: "upload"; busy: boolean; error?: string }
@@ -90,7 +94,11 @@ export default function App() {
       </header>
 
       {view.kind === "list" && (
-        <HistoryList onOpen={handleOpen} onNew={() => setView({ kind: "upload", busy: false })} />
+        <HistoryList
+          onOpen={handleOpen}
+          onNew={() => setView({ kind: "upload", busy: false })}
+          canDelete={isAdmin}
+        />
       )}
 
       {view.kind === "upload" && (

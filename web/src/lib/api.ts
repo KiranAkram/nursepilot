@@ -53,6 +53,16 @@ export async function updateChart(
   return (await res.json()) as Extract<JobStatus, { status: "done" }>
 }
 
+export async function deleteChart(jobId: string): Promise<void> {
+  const res = await fetch(`${API_URL}/charts/${jobId}`, { method: "DELETE" })
+  if (!res.ok) {
+    const detail = await res.json().catch(() => ({}))
+    throw new Error(
+      typeof detail.detail === "string" ? detail.detail : `Delete failed (${res.status})`,
+    )
+  }
+}
+
 /** Poll until the job is done or errors. Resolves with the terminal status. */
 export async function pollJob(
   jobId: string,

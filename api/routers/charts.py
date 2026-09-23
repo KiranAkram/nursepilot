@@ -7,13 +7,14 @@ in-process worker (see main.py lifespan) claims it from there.
 - GET  /charts            list extractions (history)
 - GET  /charts/{job_id}   status + chart/grounding/flagged when done
 - PUT  /charts/{job_id}   overwrite the (nurse-edited) chart
+- DELETE /charts/{job_id} remove a finished job
 """
 
 import uuid
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from pydantic import BaseModel
 from sqlmodel import Session, select
 
@@ -170,3 +171,17 @@ def update_chart(
     session.commit()
     session.refresh(row)
     return _to_status(row)
+
+
+@router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_chart(job_id: str, session: SessionDep) -> Response:
+    row = session.get(Extraction, job_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Unknown job id.")
+    # Deleting a row mid-extraction would let the worker's _persist recreate it
+    # on completion; make the caller wait for a terminal status instead.
+    if row.status in ("pending", "processing"):
+        raise HTTPException(status_code=409, detail="Job is still running.")
+    session.delete(row)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

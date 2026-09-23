@@ -1,10 +1,10 @@
-import { FileText, Loader2, Plus, RefreshCw } from "lucide-react"
+import { FileText, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { listCharts } from "@/lib/api"
+import { deleteChart, listCharts } from "@/lib/api"
 import type { JobSummary } from "@/types/chart"
 
 const STATUS_TONE = {
@@ -22,9 +22,12 @@ function fmt(ts: string | null): string {
 export function HistoryList({
   onOpen,
   onNew,
+  canDelete = false,
 }: {
   onOpen: (jobId: string) => void
   onNew: () => void
+  /** Show the per-row delete control (admin view). */
+  canDelete?: boolean
 }) {
   const [rows, setRows] = useState<JobSummary[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -41,6 +44,17 @@ export function HistoryList({
   useEffect(() => {
     load()
   }, [])
+
+  async function handleDelete(r: JobSummary) {
+    const label = r.patient_name ?? r.filename ?? r.job_id
+    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return
+    try {
+      await deleteChart(r.job_id)
+      await load()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed")
+    }
+  }
 
   return (
     <Card>
@@ -76,7 +90,7 @@ export function HistoryList({
           <table className="w-full border-collapse">
             <thead>
               <tr>
-                {["Patient", "MRN", "File", "Status", "Updated"].map((h) => (
+                {["Patient", "MRN", "File", "Status", "Updated", ...(canDelete ? [""] : [])].map((h) => (
                   <th
                     key={h}
                     className="border-b px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
@@ -105,6 +119,22 @@ export function HistoryList({
                     <Badge variant={STATUS_TONE[r.status]}>{r.status}</Badge>
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">{fmt(r.updated_at)}</td>
+                  {canDelete && (
+                    <td className="px-1 py-1 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="Delete"
+                        disabled={r.status === "processing"}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleDelete(r)
+                        }}
+                      >
+                        <Trash2 className="text-destructive" />
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
