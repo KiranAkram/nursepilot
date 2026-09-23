@@ -1,4 +1,4 @@
-import type { JobStatus, JobSummary, PatientChart } from "@/types/chart"
+import type { JobPhase, JobStatus, JobSummary, PatientChart } from "@/types/chart"
 
 // Prefer the runtime-injected config (set by the container at startup), so one
 // built image serves every environment. Falls back to the build-time VITE_API_URL
@@ -65,16 +65,28 @@ export async function deleteChart(jobId: string): Promise<void> {
 
 export type TerminalJob = Extract<JobStatus, { status: "done" | "rejected" | "error" }>
 
-/** Poll until the job reaches a terminal status. Resolves with that status. */
+/**
+ * Poll until the job reaches a terminal status. Resolves with that status;
+ * `onPhase` fires each time the in-flight phase changes (queued → screening → extracting).
+ */
 export async function pollJob(
   jobId: string,
-  { intervalMs = 1500, signal }: { intervalMs?: number; signal?: AbortSignal } = {},
+  {
+    intervalMs = 1500,
+    signal,
+    onPhase,
+  }: { intervalMs?: number; signal?: AbortSignal; onPhase?: (phase: JobPhase) => void } = {},
 ): Promise<TerminalJob> {
+  let phase: JobPhase | undefined
   for (;;) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
     const job = await getJob(jobId)
     if (job.status === "done" || job.status === "rejected" || job.status === "error") {
       return job
+    }
+    if (job.status !== phase) {
+      phase = job.status
+      onPhase?.(phase)
     }
     await new Promise((r) => setTimeout(r, intervalMs))
   }
