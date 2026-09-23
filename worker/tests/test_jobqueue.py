@@ -90,7 +90,7 @@ def test_fail_retries_then_errors_and_drops_pdf(engine, conn):
         row = _row(engine, job_id)
         assert (row.status, row.retry_count, row.pdf) == ("pending", attempt, b"%PDF")
         conn.execute(
-            "UPDATE extractions SET status='processing' WHERE id=%s", (job_id,)
+            "UPDATE extractions SET status='screening' WHERE id=%s", (job_id,)
         )
 
     fail(conn, job_id, "boom final")
@@ -126,12 +126,13 @@ def test_reclaim_stale_requeues_only_old_in_flight_rows(engine, conn):
         "pending",
         1,
     )
-    assert _row(engine, fresh).status == "processing"
+    assert _row(engine, fresh).status == "screening"
+    assert _row(engine, finished).status == "done"
 
 
 def test_reclaim_stale_exhausts_to_error(engine, conn):
     job_id = _insert(
-        engine, status="processing", pdf=b"%PDF", retry_count=MAX_ATTEMPTS - 1
+        engine, status="extracting", pdf=b"%PDF", retry_count=MAX_ATTEMPTS - 1
     )
     conn.execute(
         "UPDATE extractions SET updated_at = now() - interval '1 hour' WHERE id = %s",
