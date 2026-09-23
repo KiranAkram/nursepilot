@@ -33,7 +33,7 @@ export default function App() {
     try {
       const jobId = await uploadPdf(file)
       const job = await pollJob(jobId)
-      if (job.status === "error") {
+      if (job.status === "error" || job.status === "rejected") {
         setView({ kind: "upload", busy: false, error: job.detail })
         return
       }

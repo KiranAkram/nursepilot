@@ -253,9 +253,23 @@ export interface FlaggedField {
   reason: string // the validation error message
 }
 
+/** In-flight phases reported by the API; the job is still being worked on. */
+export type JobPhase = "queued" | "screening" | "extracting"
+export type TerminalStatus = "done" | "rejected" | "error"
+
+/** Intake-gate verdict recorded on the job (see worker/screening.py). */
+export interface Screening {
+  outcome: "accepted" | "rejected" | "unavailable"
+  score?: number
+  threshold?: number
+  model?: string
+  reason?: string
+  at?: string
+}
+
 export interface JobSummary {
   job_id: string
-  status: "processing" | "done" | "error"
+  status: JobPhase | TerminalStatus
   filename: string | null
   patient_name: string | null
   mrn: string | null
@@ -264,12 +278,14 @@ export interface JobSummary {
 }
 
 export type JobStatus =
-  | { job_id: string; status: "processing" }
+  | { job_id: string; status: JobPhase; screening: Screening | null }
   | {
       job_id: string
       status: "done"
       chart: PatientChart
       grounding: GroundingResult[]
       flagged: FlaggedField[]
+      screening: Screening | null
     }
-  | { job_id: string; status: "error"; detail: string }
+  | { job_id: string; status: "rejected"; detail: string; screening: Screening | null }
+  | { job_id: string; status: "error"; detail: string; screening: Screening | null }

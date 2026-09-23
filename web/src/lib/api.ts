@@ -63,15 +63,19 @@ export async function deleteChart(jobId: string): Promise<void> {
   }
 }
 
-/** Poll until the job is done or errors. Resolves with the terminal status. */
+export type TerminalJob = Extract<JobStatus, { status: "done" | "rejected" | "error" }>
+
+/** Poll until the job reaches a terminal status. Resolves with that status. */
 export async function pollJob(
   jobId: string,
   { intervalMs = 1500, signal }: { intervalMs?: number; signal?: AbortSignal } = {},
-): Promise<Extract<JobStatus, { status: "done" | "error" }>> {
+): Promise<TerminalJob> {
   for (;;) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
     const job = await getJob(jobId)
-    if (job.status !== "processing") return job
+    if (job.status === "done" || job.status === "rejected" || job.status === "error") {
+      return job
+    }
     await new Promise((r) => setTimeout(r, intervalMs))
   }
 }

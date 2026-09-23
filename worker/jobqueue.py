@@ -9,13 +9,15 @@ atomic UPDATE, which is what makes claiming safe across concurrent workers.
 """
 
 import psycopg
+from psycopg.types.json import Jsonb
 
 MAX_ATTEMPTS = 3
 STALE_AFTER = "20 minutes"  # > any plausible single extraction incl. Gemini retries
+IN_FLIGHT = ["screening", "extracting"]  # claimed but not terminal
 
 _CLAIM = """
 UPDATE extractions
-SET status = 'processing', updated_at = now()
+SET status = 'screening', updated_at = now()
 WHERE id = (
     SELECT id FROM extractions
     WHERE status = 'pending'
@@ -36,7 +38,15 @@ SET retry_count = retry_count + 1,
     pdf    = CASE WHEN %(retry)s AND retry_count + 1 < %(max)s
                   THEN pdf ELSE NULL END,
     error = %(error)s,
+    screening = COALESCE(%(screening)s::jsonb, screening),
     updated_at = now()
+WHERE id = %(id)s
+"""
+
+_REJECT = """
+UPDATE extractions
+SET status = 'rejected', pdf = NULL, error = NULL,
+    screening = %(screening)s::jsonb, updated_at = now()
 WHERE id = %(id)s
 """
 
@@ -48,7 +58,7 @@ SET retry_count = retry_count + 1,
     error  = CASE WHEN retry_count + 1 < %(max)s THEN error
                   ELSE 'worker died mid-job; retries exhausted' END,
     updated_at = now()
-WHERE status = 'processing' AND updated_at < now() - %(stale)s::interval
+WHERE status = ANY(%(in_flight)s) AND updated_at < now() - %(stale)s::interval
 """
 
 
@@ -62,22 +72,43 @@ def claim(conn: psycopg.Connection) -> tuple[str, bytes | None] | None:
 
 
 def fail(
-    conn: psycopg.Connection, job_id: str, error: str, *, retryable: bool = True
+    conn: psycopg.Connection,
+    job_id: str,
+    error: str,
+    *,
+    retryable: bool = True,
+    screening: dict | None = None,
 ) -> None:
     """Record a failed attempt: back to `pending` if attempts remain, else `error`.
 
-    The final failure drops the PDF bytes; nothing will read them again.
+    The final failure drops the PDF bytes; nothing will read them again. Pass
+    `screening` to record why the gate itself couldn't run.
     """
     conn.execute(
-        _FAIL, {"id": job_id, "error": error, "retry": retryable, "max": MAX_ATTEMPTS}
+        _FAIL,
+        {
+            "id": job_id,
+            "error": error,
+            "retry": retryable,
+            "max": MAX_ATTEMPTS,
+            "screening": Jsonb(screening) if screening is not None else None,
+        },
     )
 
 
+def reject(conn: psycopg.Connection, job_id: str, screening: dict) -> None:
+    """Terminal: screening said this isn't an SNF packet. Not an error, not retried."""
+    conn.execute(_REJECT, {"id": job_id, "screening": Jsonb(screening)})
+
+
 def reclaim_stale(conn: psycopg.Connection) -> int:
-    """Requeue jobs whose worker died mid-run (still `processing` after STALE_AFTER).
+    """Requeue jobs whose worker died mid-run (still in flight after STALE_AFTER).
 
     Counts as a failed attempt so a job that crashes the worker every time can't
     loop forever. Returns the number of rows touched.
     """
-    cur = conn.execute(_RECLAIM_STALE, {"max": MAX_ATTEMPTS, "stale": STALE_AFTER})
+    cur = conn.execute(
+        _RECLAIM_STALE,
+        {"max": MAX_ATTEMPTS, "stale": STALE_AFTER, "in_flight": IN_FLIGHT},
+    )
     return cur.rowcount
