@@ -8,10 +8,15 @@ import { deleteChart, listCharts } from "@/lib/api"
 import type { JobSummary } from "@/types/chart"
 
 const STATUS_TONE = {
+  queued: "secondary",
+  screening: "secondary",
+  extracting: "secondary",
   done: "success",
-  processing: "secondary",
+  rejected: "destructive",
   error: "destructive",
 } as const
+
+const TERMINAL = new Set(["done", "rejected", "error"])
 
 function fmt(ts: string | null): string {
   if (!ts) return "—"
@@ -125,7 +130,7 @@ export function HistoryList({
                         variant="ghost"
                         size="sm"
                         aria-label="Delete"
-                        disabled={r.status === "processing"}
+                        disabled={!TERMINAL.has(r.status)}
                         onClick={(e) => {
                           e.stopPropagation()
                           handleDelete(r)

@@ -4,7 +4,7 @@ Postgres-backed (via the shared `extractions` table). The table is also the job
 queue: an upload stores the PDF bytes on a `pending` row and fires a NOTIFY; the
 in-process worker (see main.py lifespan) claims it from there.
 - POST /charts            store the PDF, notify the worker, return a job id
-- GET  /charts            list extractions (history)
+- GET  /charts            list extractions (history; rejected hidden unless asked)
 - GET  /charts/{job_id}   status + chart/grounding/flagged when done
 - PUT  /charts/{job_id}   overwrite the (nurse-edited) chart
 - DELETE /charts/{job_id} remove a finished job
@@ -28,12 +28,15 @@ MAX_PDF_BYTES = 25 * 1024 * 1024  # 25 MB
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+# Row states a worker may still write to; nothing terminal.
+IN_FLIGHT = ("pending", "screening", "extracting")
+
+REJECTED_DETAIL = "Not an SNF referral packet."
+
 
 def _public_status(db_status: str) -> str:
-    """Collapse internal row states into the three the frontend cares about."""
-    if db_status in ("pending", "processing"):
-        return "processing"
-    return db_status  # "done" | "error"
+    # queued | screening | extracting | done | rejected | error
+    return "queued" if db_status == "pending" else db_status
 
 
 def _patient_fields(chart: dict) -> tuple[str | None, str | None]:
@@ -44,12 +47,12 @@ def _patient_fields(chart: dict) -> tuple[str | None, str | None]:
 
 class JobCreated(BaseModel):
     job_id: str
-    status: str = "processing"
+    status: str = "queued"
 
 
 class JobStatus(BaseModel):
     job_id: str
-    status: str  # "processing" | "done" | "error"
+    status: str  # queued | screening | extracting | done | rejected | error
     filename: str | None = None
     patient_name: str | None = None
     mrn: str | None = None
@@ -57,6 +60,7 @@ class JobStatus(BaseModel):
     grounding: list[dict] | None = None
     flagged: list[dict] | None = None
     detail: str | None = None
+    screening: dict | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -71,6 +75,14 @@ class JobSummary(BaseModel):
     updated_at: datetime | None = None
 
 
+def _detail(row: Extraction, public: str) -> str | None:
+    if public == "error":
+        return row.error
+    if public == "rejected":
+        return REJECTED_DETAIL
+    return None
+
+
 def _to_status(row: Extraction) -> JobStatus:
     public = _public_status(row.status)
     return JobStatus(
@@ -82,7 +94,8 @@ def _to_status(row: Extraction) -> JobStatus:
         chart=row.chart if public == "done" else None,
         grounding=row.grounding if public == "done" else None,
         flagged=row.flagged if public == "done" else None,
-        detail=row.error if public == "error" else None,
+        detail=_detail(row, public),
+        screening=row.screening,
         created_at=row.created_at,
         updated_at=row.updated_at,
     )
@@ -121,10 +134,12 @@ async def create_chart(
 def list_charts(
     session: SessionDep,
     limit: int = 50,
+    include_rejected: bool = False,
 ) -> list[JobSummary]:
-    rows = session.exec(
-        select(Extraction).order_by(Extraction.created_at.desc()).limit(limit)
-    ).all()
+    stmt = select(Extraction)
+    if not include_rejected:
+        stmt = stmt.where(Extraction.status != "rejected")
+    rows = session.exec(stmt.order_by(Extraction.created_at.desc()).limit(limit)).all()
     return [
         JobSummary(
             job_id=r.id,
@@ -180,7 +195,7 @@ def delete_chart(job_id: str, session: SessionDep) -> Response:
         raise HTTPException(status_code=404, detail="Unknown job id.")
     # Deleting a row mid-extraction would let the worker's _persist recreate it
     # on completion; make the caller wait for a terminal status instead.
-    if row.status in ("pending", "processing"):
+    if row.status in IN_FLIGHT:
         raise HTTPException(status_code=409, detail="Job is still running.")
     session.delete(row)
     session.commit()

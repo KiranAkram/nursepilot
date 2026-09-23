@@ -19,8 +19,9 @@ from psycopg import sql
 
 from db.notify import CHANNEL
 from db.session import psycopg_dsn
-from jobqueue import claim, fail, reclaim_stale
+from jobqueue import claim, fail, reclaim_stale, reject
 from jobs import extract_chart
+from screening import NotAnSnfPacketError, ScreeningUnavailableError
 
 log = logging.getLogger(__name__)
 
@@ -70,6 +71,19 @@ def drain(conn: psycopg.Connection) -> int:
         try:
             extract_chart(job_id, pdf)
             log.info("worker: job %s done", job_id)
+        except NotAnSnfPacketError as exc:
+            log.info("worker: job %s rejected by screening", job_id)
+            reject(conn, job_id, exc.screening)
+        except ScreeningUnavailableError as exc:
+            # Strict gate: never extract unscreened. Retried like any failure;
+            # the verdict records that the gate itself was down.
+            log.warning("worker: job %s screening unavailable: %s", job_id, exc)
+            fail(
+                conn,
+                job_id,
+                str(exc),
+                screening={"outcome": "unavailable", "reason": str(exc)},
+            )
         except Exception as exc:
             log.exception("worker: job %s failed", job_id)
             fail(conn, job_id, str(exc))

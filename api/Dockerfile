@@ -18,7 +18,7 @@ COPY api/ ./api/
 # API's own. Adding a dep to either service's pyproject means adding it here too.
 RUN uv pip install --system ./shared \
     fastapi uvicorn[standard] python-multipart \
-    google-genai pypdf
+    google-genai pypdf httpx
 
 # Lets `from listener import run_forever` resolve without packaging worker/.
 ENV PYTHONPATH=/app/worker

@@ -12,7 +12,8 @@ class Extraction(SQLModel, table=True):
 
     # API-generated job id (uuid4 hex); the row is created before the worker sees it.
     id: str = Field(primary_key=True)
-    status: str = Field(default="pending", index=True)  # pending|processing|done|error
+    status: str = Field(default="pending", index=True)
+    # pending -> screening -> extracting -> done | rejected | error
     filename: str | None = None
 
     # Denormalized for listing/search without cracking open the chart JSON.
@@ -32,6 +33,9 @@ class Extraction(SQLModel, table=True):
     # (cleared on done/final error); retry_count caps re-runs after a failure.
     pdf: bytes | None = Field(default=None, sa_column=Column(LargeBinary))
     retry_count: int = Field(default=0, sa_column_kwargs={"server_default": "0"})
+    # Screening verdict (worker/screening.py): outcome accepted|rejected|unavailable,
+    # score, threshold, model, at. The audit record for the intake gate.
+    screening: dict | None = Field(default=None, sa_column=Column(JSONB))
 
     created_at: datetime | None = Field(
         default=None,

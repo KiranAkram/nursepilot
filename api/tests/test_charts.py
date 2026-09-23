@@ -136,10 +136,25 @@ def test_create_stores_pdf_on_pending_row_and_notifies(db, monkeypatch):
         assert row.retry_count == 0
 
 
-def test_get_processing(db):
-    job_id = _insert(db, status="processing")
+@pytest.mark.parametrize(
+    ("db_status", "public"),
+    [("pending", "queued"), ("screening", "screening"), ("extracting", "extracting")],
+)
+def test_get_in_flight_statuses(db, db_status, public):
+    job_id = _insert(db, status=db_status, pdf=b"%PDF")
     body = client.get(f"/charts/{job_id}").json()
-    assert body["status"] == "processing"
+    assert body["status"] == public
+    assert body["chart"] is None
+    assert body["detail"] is None
+
+
+def test_get_rejected_returns_detail_and_verdict(db):
+    verdict = {"outcome": "rejected", "score": 0.1, "threshold": 0.5}
+    job_id = _insert(db, status="rejected", screening=verdict)
+    body = client.get(f"/charts/{job_id}").json()
+    assert body["status"] == "rejected"
+    assert body["detail"] == "Not an SNF referral packet."
+    assert body["screening"] == verdict
     assert body["chart"] is None
 
 
@@ -184,16 +199,23 @@ def test_put_rejects_invalid_chart(db):
 
 
 def test_put_409_when_not_done(db):
-    job_id = _insert(db, status="processing")
+    job_id = _insert(db, status="extracting")
     assert client.put(f"/charts/{job_id}", json=_chart()).status_code == 409
 
 
 def test_list_charts(db):
     _insert(db, status="done", patient_name="Alpha One", chart=_chart())
-    _insert(db, status="processing", patient_name="Beta Two", pdf=b"%PDF")
+    _insert(db, status="screening", patient_name="Beta Two", pdf=b"%PDF")
     rows = client.get("/charts").json()
     names = {r["patient_name"] for r in rows}
     assert {"Alpha One", "Beta Two"} <= names
+
+
+def test_list_hides_rejected_unless_asked(db):
+    rejected = _insert(db, status="rejected", filename="resume.pdf")
+    assert rejected not in {r["job_id"] for r in client.get("/charts").json()}
+    rows = client.get("/charts", params={"include_rejected": "true"}).json()
+    assert rejected in {r["job_id"] for r in rows}
 
 
 def test_delete_removes_finished_row(db):
@@ -208,7 +230,12 @@ def test_delete_unknown_404(db):
 
 
 def test_delete_409_while_running(db):
-    job_id = _insert(db, status="processing", pdf=b"%PDF")
+    job_id = _insert(db, status="screening", pdf=b"%PDF")
     assert client.delete(f"/charts/{job_id}").status_code == 409
     with Session(db) as s:
         assert s.get(Extraction, job_id) is not None
+
+
+def test_delete_allows_rejected(db):
+    job_id = _insert(db, status="rejected")
+    assert client.delete(f"/charts/{job_id}").status_code == 204
